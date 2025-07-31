@@ -25,6 +25,7 @@ find_package(px4_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(rclpy REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 #################
 # Setup targets #
@@ -57,9 +58,18 @@ target_include_directories(frame_transforms PUBLIC
 #install(TARGETS debug_vect_advertiser DESTINATION lib/${PROJECT_NAME})
 
 # examples/offboard/offboard_control
+# add_executable(offboard_control src/offboard/main.cpp)
+# ament_target_dependencies(offboard_control rclcpp px4_msgs Eigen3 yaml-cpp)
+
+
 add_executable(offboard_control src/offboard/main.cpp)
-ament_target_dependencies(offboard_control rclcpp px4_msgs)
+ament_target_dependencies(offboard_control rclcpp px4_msgs Eigen3)
+
+# Explicitly link yaml-cpp
+target_link_libraries(offboard_control yaml-cpp)
+
 install(TARGETS offboard_control DESTINATION lib/${PROJECT_NAME})
+
 
 # examples/offboard/offboard_control_srv
 #add_executable(offboard_control_srv src/offboard/offboard_control_srv.cpp)
@@ -92,6 +102,9 @@ install(TARGETS frame_transforms
 
 # Install launch files.
 install(DIRECTORY launch DESTINATION share/${PROJECT_NAME}/)
+
+# Install config files.
+install(DIRECTORY config DESTINATION share/${PROJECT_NAME}/)
 
 # Install tests
 install(DIRECTORY test DESTINATION share/${PROJECT_NAME}/)

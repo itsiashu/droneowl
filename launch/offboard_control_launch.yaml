@@ -1,7 +1,7 @@
 launch:
 
 - node:
-    pkg: "px4_ros_com"
+    pkg: "droneowl"
     exec: "offboard_control"
     name: "offboard_control"
     output: "screen"

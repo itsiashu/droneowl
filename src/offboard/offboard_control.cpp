@@ -39,6 +39,8 @@
  * @author Nuno Marques <nuno.marques@dronesolutions.io>
  */
 
+#include <Eigen/Dense>
+
 #include "droneowl/offboard_control.hpp"
 
 /**
@@ -67,6 +69,35 @@ void OffboardControl::disarm()
 	request_vehicle_command(VehicleCommand::VEHICLE_CMD_COMPONENT_ARM_DISARM, 0.0);
 }
 
+void OffboardControl::load_waypoints_from_yaml(const std::string &filepath)
+{
+	waypoints_.clear();
+	try {
+		YAML::Node config = YAML::LoadFile(filepath);
+
+		if (!config["waypoints"]) {
+			RCLCPP_ERROR(this->get_logger(), "YAML file missing 'waypoints' field");
+			return;
+		}
+
+		for (const auto &node : config["waypoints"]) {
+			if (node.IsSequence() && node.size() == 3) {
+				float x = node[0].as<float>();
+				float y = node[1].as<float>();
+				float z = node[2].as<float>();
+				waypoints_.push_back({x, y, z});
+			}
+		}
+
+		RCLCPP_INFO(this->get_logger(), "Loaded %zu waypoints from YAML file: %s",
+					waypoints_.size(), filepath.c_str());
+	}
+	catch (const std::exception &e) {
+		RCLCPP_ERROR(this->get_logger(), "Failed to load YAML file %s: %s",
+					 filepath.c_str(), e.what());
+	}
+}
+
 /**
  * @brief Publish the offboard control mode.
  *        For this example, only position and altitude controls are active.
@@ -83,16 +114,56 @@ void OffboardControl::publish_offboard_control_mode()
 	offboard_control_mode_publisher_->publish(msg);
 }
 
+/*void OffboardControl::publish_offboard_control_mode()
+{
+	OffboardControlMode msg{};
+	msg.position = false;
+	msg.velocity = true;   // enable velocity mode
+	msg.acceleration = false;
+	msg.attitude = false;
+	msg.body_rate = false;
+	msg.timestamp = this->get_clock()->now().nanoseconds() / 1000;
+	offboard_control_mode_publisher_->publish(msg);
+}*/
+
+
 /**
  * @brief Publish a trajectory setpoint
  *        For this example, it sends a trajectory setpoint to make the
  *        vehicle hover at 5 meters with a yaw angle of 180 degrees.
  */
-void OffboardControl::publish_trajectory_setpoint()
+/*void OffboardControl::publish_trajectory_setpoint()
 {
 	TrajectorySetpoint msg{};
 	msg.position = {0.0, 0.0, -5.0};
 	msg.yaw = -3.14; // [-PI:PI]
+	msg.timestamp = this->get_clock()->now().nanoseconds() / 1000;
+	trajectory_setpoint_publisher_->publish(msg);
+}*/
+
+void OffboardControl::publish_trajectory_setpoint()
+{
+	// Current target waypoint
+	auto target = waypoints_[current_wp_];
+
+	static int count = 0;
+	count++;
+
+	// Move to the next waypoint after ~5 seconds (50 timer ticks at 100ms)
+	if (count > 50) {
+		count = 0;
+		current_wp_ = (current_wp_ + 1) % waypoints_.size();
+		target = waypoints_[current_wp_];
+		RCLCPP_INFO(this->get_logger(),
+					"Switching to waypoint %zu: (%.1f, %.1f, %.1f)",
+					current_wp_, target[0], target[1], target[2]);
+	}
+
+	// Publish position setpoint
+	TrajectorySetpoint msg{};
+	msg.position = {target[0], target[1], target[2]};
+	msg.velocity = {NAN, NAN, NAN};  // leave velocities unused
+	msg.yaw = 0.0f;                  // face forward
 	msg.timestamp = this->get_clock()->now().nanoseconds() / 1000;
 	trajectory_setpoint_publisher_->publish(msg);
 }
@@ -151,7 +222,7 @@ void OffboardControl::timer_callback(void){
 		}
 		break;
 	case State::wait_for_stable_offboard_mode :
-		if (++num_of_steps>10){
+		if (++num_of_steps > 10){
 			arm();
 			state_ = State::arm_requested;
 		}

@@ -1,0 +1,9 @@
+planner_server:
+  ros__parameters:
+    planner_plugins: ["RRTStar"]
+    RRTStar:
+      plugin: "nav2_smac_planner/SmacPlannerHybrid"
+      allow_unknown: true
+      motion_model_for_search: "REEDS_SHEPP"
+      tolerance: 0.5
+      max_iterations: 5000
